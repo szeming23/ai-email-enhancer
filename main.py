@@ -1,3 +1,4 @@
+import os
 import queue
 import threading
 import tkinter as tk
@@ -45,25 +46,42 @@ def update_title():
 
 def open_settings():
     settings = load_settings()
+    # the saved key is never shown, the window only says whether one is set
+    saved_key = [load_settings(use_env=False)["api_key"]]
+    env_key = os.environ.get("OPENAI_API_KEY", "")
     window = tk.Toplevel(root)
     window.title("Settings")
     window.resizable(False, False)
     window.transient(root)
     window.grab_set()
 
-    api_key_var = tk.StringVar(value=settings["api_key"])
+    api_key_var = tk.StringVar()
+    key_status_var = tk.StringVar()
     model_var = tk.StringVar(value=settings["model"])
-    show_key_var = tk.BooleanVar(value=False)
     save_history_var = tk.BooleanVar(value=settings["save_history"])
 
     ## API key
     tk.Label(window, text="API key").grid(row=0, column=0, sticky=tk.W, padx=10, pady=(10, 3))
+    tk.Label(window, textvariable=key_status_var).grid(row=0, column=1, sticky=tk.W, pady=(10, 3))
+    def update_key_status():
+        if saved_key[0]:
+            key_status_var.set("Set")
+        elif env_key:
+            key_status_var.set("Set (from OPENAI_API_KEY environment variable)")
+        else:
+            key_status_var.set("Not set")
+        button_remove_key.config(state=tk.NORMAL if saved_key[0] else tk.DISABLED)
+    def remove_key():
+        # takes effect when Save is clicked
+        saved_key[0] = ""
+        update_key_status()
+    button_remove_key = tk.Button(window, text="Remove saved key", command=remove_key)
+    button_remove_key.grid(row=0, column=2, padx=(5, 10), pady=(10, 3))
+    update_key_status()
+    ### paste a new key here, leave empty to keep the current one
+    tk.Label(window, text="New API key").grid(row=1, column=0, sticky=tk.W, padx=10, pady=3)
     entry_key = tk.Entry(window, textvariable=api_key_var, width=50, show="*")
-    entry_key.grid(row=0, column=1, columnspan=2, sticky=tk.EW, padx=(0, 10), pady=(10, 3))
-    def toggle_key():
-        entry_key.config(show="" if show_key_var.get() else "*")
-    tk.Checkbutton(window, text="Show key", variable=show_key_var,
-                   command=toggle_key).grid(row=1, column=1, sticky=tk.W)
+    entry_key.grid(row=1, column=1, columnspan=2, sticky=tk.EW, padx=(0, 10), pady=3)
 
     ## model (can pick from the list or type any model name)
     tk.Label(window, text="Model").grid(row=2, column=0, sticky=tk.W, padx=10, pady=3)
@@ -72,7 +90,7 @@ def open_settings():
     def refresh_models():
         # ask the API which models this key can use
         try:
-            models = list_models(api_key_var.get().strip())
+            models = list_models(api_key_var.get().strip() or saved_key[0] or env_key)
         except Exception as e:
             messagebox.showerror("Settings", f"Could not fetch models:\n{e}", parent=window)
             return
@@ -104,7 +122,7 @@ def open_settings():
             messagebox.showerror("Settings", "Model cannot be empty.", parent=window)
             return
         try:
-            save_settings(api_key_var.get(), model_var.get(),
+            save_settings(api_key_var.get().strip() or saved_key[0], model_var.get(),
                           text_prompt.get("1.0", "end"), save_history_var.get())
         except OSError as e:
             messagebox.showerror("Settings", f"Could not save settings:\n{e}", parent=window)

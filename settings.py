@@ -10,8 +10,11 @@ DEFAULT_PROMPT = ("Creatively improve the English in the following email. "
                   "Reply with the improved email only.")
 DEFAULTS = {"api_key": "", "model": DEFAULT_MODEL, "prompt": DEFAULT_PROMPT, "save_history": False}
 
-def load_settings(path=SETTINGS_PATH):
-    '''Loads settings from path. Missing file or missing fields fall back to defaults.'''
+def load_settings(path=SETTINGS_PATH, use_env=True):
+    '''
+    Loads settings from path. Missing file or missing fields fall back to defaults.
+    use_env: if false, only returns the API key saved in the file (ignores the environment variable)
+    '''
     settings = dict(DEFAULTS)
     try:
         with open(path) as json_file:
@@ -22,7 +25,7 @@ def load_settings(path=SETTINGS_PATH):
         settings.update({k: v for k, v in saved.items()
                          if k in DEFAULTS and type(v) is type(DEFAULTS[k])})
     # fall back to the environment variable if no key has been saved
-    if not settings["api_key"]:
+    if use_env and not settings["api_key"]:
         settings["api_key"] = os.environ.get("OPENAI_API_KEY", "")
     if not settings["model"].strip():
         settings["model"] = DEFAULT_MODEL
